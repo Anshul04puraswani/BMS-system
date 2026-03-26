@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>EV BMS Dashboard</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #0f172a;
+      color: white;
+      text-align: center;
+    }
+
+    h1 {
+      margin-top: 20px;
+    }
+
+    button {
+      padding: 12px 20px;
+      font-size: 16px;
+      margin: 20px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      padding: 20px;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 15px;
+    }
+
+    .value {
+      font-size: 28px;
+      margin-top: 10px;
+    }
+
+    .status {
+      font-size: 20px;
+      padding: 10px;
+      border-radius: 10px;
+    }
+
+    .good { background: green; }
+    .low { background: orange; }
+    .high { background: darkorange; }
+    .critical { background: red; }
+  </style>
+
+</head>
+
+<body>
+
+<h1>🔋 EV Battery Monitoring System</h1>
+
+<button onclick="connectSerial()">Connect Arduino</button>
+
+<div class="container">
+
+  <div class="card">
+    <h3>Voltage</h3>
+    <div id="voltage" class="value">--</div>
+  </div>
+
+  <div class="card">
+    <h3>Current</h3>
+    <div id="current" class="value">--</div>
+  </div>
+
+  <div class="card">
+    <h3>Temperature</h3>
+    <div id="temperature" class="value">--</div>
+  </div>
+
+  <div class="card">
+    <h3>State of Charge</h3>
+    <div id="soc" class="value">--</div>
+  </div>
+
+  <div class="card">
+    <h3>State of Health</h3>
+    <div id="soh" class="value">--</div>
+  </div>
+
+  <div class="card">
+    <h3>Status</h3>
+    <div id="status" class="status">--</div>
+  </div>
+
+</div>
+
+<script>
+async function connectSerial() {
+  try {
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 9600 });
+
+    const decoder = new TextDecoderStream();
+    const inputDone = port.readable.pipeTo(decoder.writable);
+    const reader = decoder.readable.getReader();
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      processData(value);
+    }
+
+  } catch (err) {
+    alert("Connection failed!");
+    console.error(err);
+  }
+}
+
+function processData(data) {
+
+  let lines = data.split("\n");
+
+  lines.forEach(line => {
+
+    if (!line.includes("V:")) return;
+
+    let parts = line.trim().split(",");
+    let obj = {};
+
+    parts.forEach(p => {
+      let [key, val] = p.split(":");
+      obj[key] = val;
+    });
+
+    document.getElementById("voltage").innerText = obj["V"] + " V";
+    document.getElementById("current").innerText = obj["I"] + " A";
+    document.getElementById("temperature").innerText = obj["T"] + " °C";
+    document.getElementById("soc").innerText = obj["SOC"] + " %";
+    document.getElementById("soh").innerText = obj["SOH"] + " %";
+
+    let statusEl = document.getElementById("status");
+    statusEl.innerText = obj["ST"];
+    statusEl.className = "status";
+
+    if (obj["ST"] === "GOOD") statusEl.classList.add("good");
+    else if (obj["ST"] === "LOW") statusEl.classList.add("low");
+    else if (obj["ST"] === "HIGH") statusEl.classList.add("high");
+    else if (obj["ST"] === "CRITICAL") statusEl.classList.add("critical");
+
+  });
+}
+</script>
+
+</body>
+</html>
